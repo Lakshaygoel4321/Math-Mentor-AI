@@ -1,4 +1,12 @@
 Quadratic Formula: For ax² + bx + c = 0, x = (-b ± √(b²-4ac)) / 2a
 Discriminant: b² - 4ac determines the nature of roots
+If b² - 4ac > 0: Two distinct real roots
+If b² - 4ac = 0: One repeated real root
+If b² - 4ac < 0: Two complex conjugate roots
+
 Factorization: x² + (a+b)x + ab = (x+a)(x+b)
-Binomial Theorem: (a+b)ⁿ = Σ(nCr × aⁿ⁻ʳ × bʳ)
+Difference of squares: a² - b² = (a+b)(a-b)
+Perfect square: a² + 2ab + b² = (a+b)²
+
+Binomial Theorem: (a+b)ⁿ = Σ(nCr × aⁿ⁻ʳ × bʳ) where r goes from 0 to n
+Exponent rules: aᵐ × aⁿ = aᵐ⁺ⁿ, aᵐ / aⁿ = aᵐ⁻ⁿ, (aᵐ)ⁿ = aᵐⁿ

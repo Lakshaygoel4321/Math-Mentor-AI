@@ -1,7 +1,7 @@
 import streamlit as st
 from multimodal.ocr_processor import OCRProcessor
 from multimodal.audio_processor import AudioProcessor
-from rag.vectorstore import RAGPipeline
+from rag.vectorstore.vectorstore import RAGPipeline
 from agents.parser_agent import ParserAgent
 from agents.solver_agent import SolverAgent
 from agents.verifier_agent import VerifierAgent
@@ -9,6 +9,15 @@ from agents.explainer_agent import ExplainerAgent
 from memory.store import MemoryStore
 from PIL import Image
 import os
+from io import BytesIO
+
+# Try to import audio recorder
+try:
+    from audiorecorder import audiorecorder
+    AUDIO_RECORDER_AVAILABLE = True
+except ImportError:
+    AUDIO_RECORDER_AVAILABLE = False
+
 
 # Page config
 st.set_page_config(
@@ -16,6 +25,7 @@ st.set_page_config(
     page_icon="🧮",
     layout="wide"
 )
+
 
 # Initialize components
 @st.cache_resource
@@ -34,11 +44,23 @@ def init_components():
         "memory": MemoryStore()
     }
 
+
 components = init_components()
+
+
+# Initialize session state
+if 'transcribed_text' not in st.session_state:
+    st.session_state.transcribed_text = None
+if 'audio_processed' not in st.session_state:
+    st.session_state.audio_processed = False
+if 'current_audio_file' not in st.session_state:
+    st.session_state.current_audio_file = None
+
 
 # Header
 st.title("🧮 Math Mentor - AI-Powered Math Solver")
 st.markdown("Upload an image, record audio, or type your JEE-style math problem")
+
 
 # Input mode selector
 input_mode = st.radio(
@@ -47,9 +69,11 @@ input_mode = st.radio(
     horizontal=True
 )
 
+
 raw_input = None
 input_type = None
 confidence = 1.0
+
 
 # Input handling
 if input_mode == "📝 Text":
@@ -60,6 +84,7 @@ if input_mode == "📝 Text":
     )
     input_type = "text"
 
+
 elif input_mode == "📷 Image":
     uploaded_file = st.file_uploader(
         "Upload image of math problem",
@@ -68,7 +93,7 @@ elif input_mode == "📷 Image":
     
     if uploaded_file:
         image = Image.open(uploaded_file)
-        col1, col2 = st.columns()[1]
+        col1, col2 = st.columns(2)
         
         with col1:
             st.image(image, caption="Uploaded Image", use_column_width=True)
@@ -90,136 +115,230 @@ elif input_mode == "📷 Image":
         
         input_type = "image"
 
+
 elif input_mode == "🎤 Audio":
-    audio_file = st.file_uploader(
-        "Upload audio recording",
-        type=["mp3", "wav", "m4a"]
+    # Reset audio state when switching modes
+    if 'last_input_mode' not in st.session_state or st.session_state.last_input_mode != "🎤 Audio":
+        st.session_state.transcribed_text = None
+        st.session_state.audio_processed = False
+        st.session_state.current_audio_file = None
+    st.session_state.last_input_mode = "🎤 Audio"
+    
+    # Audio input options
+    st.write("**Choose audio input method:**")
+    audio_option = st.radio(
+        "Select option:",
+        ["🎙️ Record Audio", "📁 Upload Audio File"],
+        horizontal=True,
+        label_visibility="collapsed"
     )
     
-    if audio_file:
-        st.audio(audio_file)
+    audio_data = None
+    audio_file_name = None
+    
+    if audio_option == "🎙️ Record Audio":
+        if AUDIO_RECORDER_AVAILABLE:
+            st.info("🎤 **Click the microphone button below to start/stop recording**")
+            
+            # Audio recorder with microphone button
+            audio = audiorecorder("🎤 Start Recording", "🔴 Stop Recording")
+            
+            if len(audio) > 0:
+                # Display audio player
+                st.audio(audio.export().read())
+                
+                # Convert to file-like object for processing
+                audio_bytes = BytesIO()
+                audio.export(audio_bytes, format="wav")
+                audio_bytes.seek(0)
+                audio_data = audio_bytes
+                audio_file_name = "recorded_audio.wav"
+                
+                st.success("✅ Audio recorded successfully!")
+        else:
+            st.error("⚠️ Audio recorder not installed!")
+            st.code("pip install streamlit-audiorecorder", language="bash")
+            st.info("After installation, restart the Streamlit app.")
+    
+    elif audio_option == "📁 Upload Audio File":
+        audio_file = st.file_uploader(
+            "Upload audio recording",
+            type=["mp3", "wav", "m4a", "webm"],
+            key="audio_uploader"
+        )
         
-        with st.spinner("Transcribing audio..."):
-            raw_input = components["audio"].process_audio(audio_file)
-        
-        st.success("✅ Transcription complete!")
+        if audio_file:
+            audio_data = audio_file
+            audio_file_name = audio_file.name
+            st.audio(audio_file)
+            st.success("✅ Audio file uploaded!")
+    
+    # Process audio if it's new
+    if audio_data and audio_file_name:
+        # Check if this is a new file
+        if st.session_state.current_audio_file != audio_file_name or not st.session_state.audio_processed:
+            st.session_state.current_audio_file = audio_file_name
+            
+            with st.spinner("🔄 Transcribing audio..."):
+                try:
+                    transcribed = components["audio"].process_audio(audio_data)
+                    st.session_state.transcribed_text = transcribed
+                    st.session_state.audio_processed = True
+                    st.success("✅ Transcription complete!")
+                except Exception as e:
+                    st.error(f"❌ Transcription failed: {str(e)}")
+                    st.exception(e)
+                    st.session_state.transcribed_text = None
+    
+    # Show editable text area if transcription exists
+    if st.session_state.transcribed_text:
         raw_input = st.text_area(
             "Transcribed Text (editable):",
-            value=raw_input,
-            height=100
+            value=st.session_state.transcribed_text,
+            height=100,
+            key="audio_text_area",
+            help="✏️ Edit the text if transcription is incorrect"
         )
+        
+        # Update session state with edited text
+        st.session_state.transcribed_text = raw_input
+        
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            if st.button("🔄 Clear & Record New", use_container_width=True):
+                st.session_state.transcribed_text = None
+                st.session_state.audio_processed = False
+                st.session_state.current_audio_file = None
+                st.rerun()
         
         input_type = "audio"
 
-# Solve button
-if raw_input and st.button("🚀 Solve Problem", type="primary"):
-    with st.spinner("Processing your problem..."):
-        
-        # Step 1: Parse
-        st.write("### 🔍 Step 1: Parsing Problem")
-        parsed = components["parser"].parse(raw_input)
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.json(parsed, expanded=False)
-        with col2:
-            st.info(f"**Topic**: {parsed['topic'].title()}")
-            if parsed.get('needs_clarification'):
-                st.warning(f"⚠️ {parsed['clarification_reason']}")
-        
-        # Check for similar problems in memory
-        similar_problems = components["memory"].get_similar_problems(
-            parsed["problem_text"]
-        )
-        
-        if similar_problems:
-            with st.expander("💡 Similar Problems Found in Memory"):
-                for sp in similar_problems:
-                    st.write(f"- {sp['parsed_problem']['problem_text']}")
-        
-        # Step 2: Solve
-        st.write("### 🧮 Step 2: Solving")
-        solution = components["solver"].solve(parsed)
-        
-        # Show retrieved context
-        with st.expander("📚 Retrieved Knowledge"):
-            for i, ctx in enumerate(solution["retrieved_context"]):
-                st.markdown(f"**Source {i+1}** (Score: {ctx['score']:.3f})")
-                st.text(ctx["content"])
-                st.divider()
-        
-        # Step 3: Verify
-        st.write("### ✅ Step 3: Verification")
-        verification = components["verifier"].verify(
-            parsed["problem_text"],
-            solution["llm_solution"]
-        )
-        
-        col1, col2 = st.columns()[12][1]
-        with col1:
-            if verification["is_correct"]:
-                st.success("✅ Solution Verified")
-            else:
-                st.error("❌ Issues Found")
-            st.metric("Confidence", f"{verification['confidence']*100:.0f}%")
-        
-        with col2:
-            if verification.get("issues"):
-                for issue in verification["issues"]:
-                    st.warning(f"⚠️ {issue}")
-        
-        # Step 4: Explain
-        st.write("### 📖 Step 4: Explanation")
-        explanation = components["explainer"].explain(
-            parsed["problem_text"],
-            solution["llm_solution"]
-        )
-        
-        st.markdown(explanation)
-        
-        # SymPy result if available
-        if solution["sympy_result"].get("success"):
-            st.code(f"SymPy Solution: {solution['sympy_result']['solution']}", language="python")
-        
-        # Feedback section
-        st.write("### 💬 Feedback")
-        col1, col2, col3 = st.columns()[12][1]
-        
-        with col1:
-            if st.button("✅ Correct", use_container_width=True):
-                memory_id = components["memory"].store_interaction({
-                    "original_input": raw_input,
-                    "input_type": input_type,
-                    "parsed_problem": parsed,
-                    "solution": solution["llm_solution"],
-                    "verification": verification,
-                    "feedback": "correct"
-                })
-                st.success(f"✅ Feedback saved! (ID: {memory_id[:8]})")
-        
-        with col2:
-            if st.button("❌ Incorrect", use_container_width=True):
-                st.session_state["show_feedback_form"] = True
-        
-        if st.session_state.get("show_feedback_form"):
-            user_comment = st.text_input("What's wrong? (optional)")
-            if st.button("Submit Feedback"):
-                memory_id = components["memory"].store_interaction({
-                    "original_input": raw_input,
-                    "input_type": input_type,
-                    "parsed_problem": parsed,
-                    "solution": solution["llm_solution"],
-                    "verification": verification,
-                    "feedback": "incorrect",
-                    "user_comment": user_comment
-                })
-                st.success(f"✅ Feedback saved! (ID: {memory_id[:8]})")
-                st.session_state["show_feedback_form"] = False
+
+# Solve button - show if there's input
+if raw_input:
+    st.divider()
+    if st.button("🚀 Solve Problem", type="primary", use_container_width=True):
+        with st.spinner("Processing your problem..."):
+            
+            try:
+                # Step 1: Parse
+                st.write("### 🔍 Step 1: Parsing Problem")
+                parsed = components["parser"].parse(raw_input)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.json(parsed, expanded=False)
+                with col2:
+                    topic = parsed.get('topic', 'algebra')
+                    st.info(f"**Topic**: {topic.title() if topic else 'Unknown'}")
+                    if parsed.get('needs_clarification'):
+                        st.warning(f"⚠️ {parsed.get('clarification_reason', 'Clarification needed')}")
+                
+                # Check for similar problems in memory
+                similar_problems = components["memory"].get_similar_problems(
+                    parsed.get("problem_text", raw_input)
+                )
+                
+                if similar_problems:
+                    with st.expander("💡 Similar Problems Found in Memory"):
+                        for sp in similar_problems:
+                            problem_text = sp.get('parsed_problem', {}).get('problem_text', 'Unknown problem')
+                            st.write(f"- {problem_text}")
+                
+                # Step 2: Solve
+                st.write("### 🧮 Step 2: Solving")
+                solution = components["solver"].solve(parsed)
+                
+                # Show retrieved context
+                with st.expander("📚 Retrieved Knowledge"):
+                    if solution.get("retrieved_context"):
+                        for i, ctx in enumerate(solution["retrieved_context"]):
+                            st.markdown(f"**Source {i+1}** (Score: {ctx.get('score', 0):.3f})")
+                            st.text(ctx.get("content", "No content"))
+                            st.divider()
+                    else:
+                        st.info("No relevant context retrieved")
+                
+                # Step 3: Verify
+                st.write("### ✅ Step 3: Verification")
+                verification = components["verifier"].verify(
+                    parsed.get("problem_text", raw_input),
+                    solution.get("llm_solution", "No solution generated")
+                )
+                
+                col1, col2 = st.columns([1, 3])
+                with col1:
+                    if verification.get("is_correct"):
+                        st.success("✅ Solution Verified")
+                    else:
+                        st.error("❌ Issues Found")
+                    st.metric("Confidence", f"{verification.get('confidence', 0)*100:.0f}%")
+                
+                with col2:
+                    if verification.get("issues"):
+                        for issue in verification["issues"]:
+                            st.warning(f"⚠️ {issue}")
+                
+                # Step 4: Explain
+                st.write("### 📖 Step 4: Explanation")
+                explanation = components["explainer"].explain(
+                    parsed.get("problem_text", raw_input),
+                    solution.get("llm_solution", "No solution available")
+                )
+                
+                st.markdown(explanation)
+                
+                # SymPy result if available
+                if solution.get("sympy_result", {}).get("success"):
+                    st.code(f"SymPy Solution: {solution['sympy_result']['solution']}", language="python")
+                
+                # Feedback section
+                st.write("### 💬 Feedback")
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    if st.button("✅ Correct", use_container_width=True, key="correct_btn"):
+                        memory_id = components["memory"].store_interaction({
+                            "original_input": raw_input,
+                            "input_type": input_type,
+                            "parsed_problem": parsed,
+                            "solution": solution.get("llm_solution"),
+                            "verification": verification,
+                            "feedback": "correct"
+                        })
+                        st.success(f"✅ Feedback saved! (ID: {memory_id[:8]})")
+                
+                with col2:
+                    if st.button("❌ Incorrect", use_container_width=True, key="incorrect_btn"):
+                        st.session_state["show_feedback_form"] = True
+                
+                if st.session_state.get("show_feedback_form"):
+                    user_comment = st.text_input("What's wrong? (optional)")
+                    if st.button("Submit Feedback", key="submit_feedback_btn"):
+                        memory_id = components["memory"].store_interaction({
+                            "original_input": raw_input,
+                            "input_type": input_type,
+                            "parsed_problem": parsed,
+                            "solution": solution.get("llm_solution"),
+                            "verification": verification,
+                            "feedback": "incorrect",
+                            "user_comment": user_comment
+                        })
+                        st.success(f"✅ Feedback saved! (ID: {memory_id[:8]})")
+                        st.session_state["show_feedback_form"] = False
+            
+            except Exception as e:
+                st.error(f"❌ An error occurred: {str(e)}")
+                st.exception(e)
+
 
 # Sidebar
 with st.sidebar:
     st.header("📊 System Stats")
-    st.metric("Total Problems Solved", len(components["memory"].memories))
+    
+    # Reload memories to get current count
+    current_count = len(components["memory"].load_memories())
+    st.metric("Total Problems Solved", current_count)
     
     st.divider()
     
@@ -235,7 +354,11 @@ with st.sidebar:
     
     st.divider()
     
-    if st.button("🔄 Reset Memory"):
-        components["memory"].memories = []
-        components["memory"].save_memories()
-        st.success("Memory cleared!")
+    if st.button("🔄 Reset Memory", use_container_width=True, key="reset_memory_btn"):
+        try:
+            components["memory"].clear_memories()
+            st.success("✅ Memory cleared successfully!")
+            # Force reload to update count
+            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Error clearing memory: {str(e)}")

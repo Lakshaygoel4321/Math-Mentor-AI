@@ -1,12 +1,24 @@
-from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
 from langchain.prompts import ChatPromptTemplate
 import sympy as sp
 from sympy.parsing.sympy_parser import parse_expr
 import traceback
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class SolverAgent:
     def __init__(self, rag_pipeline):
-        self.llm = ChatOpenAI(model="gpt-4", temperature=0)
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            raise ValueError("⚠️ GROQ_API_KEY not found in .env file")
+        
+        self.llm = ChatGroq(
+            model="llama-3.3-70b-versatile",
+            temperature=0,
+            api_key=api_key
+        )
         self.rag = rag_pipeline
         
         self.prompt = ChatPromptTemplate.from_messages([
@@ -29,33 +41,51 @@ Provide:
         topic = parsed_problem["topic"]
         
         # Retrieve relevant context
-        context = self.rag.retrieve_context(f"{topic} {problem_text}", k=3)
-        context_text = "\n\n".join([c["content"] for c in context])
+        try:
+            context = self.rag.retrieve_context(f"{topic} {problem_text}", k=3)
+            context_text = "\n\n".join([c["content"] for c in context]) if context else "No relevant context found."
+        except Exception as e:
+            print(f"⚠️ Error retrieving context: {e}")
+            context = []
+            context_text = "No context available."
         
         # Try symbolic solving with SymPy
         sympy_result = self.try_sympy_solve(problem_text, parsed_problem.get("variables", []))
         
         # Get LLM solution
         chain = self.prompt | self.llm
-        response = chain.invoke({
-            "problem": problem_text,
-            "topic": topic,
-            "context": context_text
-        })
         
-        return {
-            "llm_solution": response.content,
-            "sympy_result": sympy_result,
-            "retrieved_context": context,
-            "confidence": 0.85  # Placeholder
-        }
+        try:
+            response = chain.invoke({
+                "problem": problem_text,
+                "topic": topic,
+                "context": context_text
+            })
+            
+            return {
+                "llm_solution": response.content,
+                "sympy_result": sympy_result,
+                "retrieved_context": context,
+                "confidence": 0.85
+            }
+        except Exception as e:
+            print(f"❌ Error in LLM solution: {e}")
+            return {
+                "llm_solution": f"Error: {str(e)}",
+                "sympy_result": sympy_result,
+                "retrieved_context": context,
+                "confidence": 0.0
+            }
     
     def try_sympy_solve(self, problem_text, variables):
         """Attempt to solve using SymPy"""
         try:
             # Simple equation detection
-            if "=" in problem_text and any(v in problem_text for v in ['x', 'y', 'z']):
+            if "=" in problem_text and any(v in problem_text.lower() for v in ['x', 'y', 'z']):
+                # Clean the text
+                problem_text = problem_text.replace("^", "**")
                 parts = problem_text.split("=")
+                
                 if len(parts) == 2:
                     lhs = parse_expr(parts[0].strip())
                     rhs = parse_expr(parts[1].strip())

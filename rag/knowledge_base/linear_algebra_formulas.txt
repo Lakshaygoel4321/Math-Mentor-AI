@@ -1,0 +1,20 @@
+Matrix Operations:
+- Matrix addition: Add corresponding elements
+- Matrix multiplication: (AB)ᵢⱼ = Σ(Aᵢₖ × Bₖⱼ)
+- Transpose: (Aᵀ)ᵢⱼ = Aⱼᵢ
+- Identity matrix: I × A = A × I = A
+
+Determinant (2×2): |A| = ad - bc for A = [[a,b],[c,d]]
+Determinant (3×3): Use cofactor expansion
+
+Matrix Inverse: A⁻¹ exists if det(A) ≠ 0
+- A × A⁻¹ = A⁻¹ × A = I
+- For 2×2: A⁻¹ = (1/det(A)) × [[d,-b],[-c,a]]
+
+System of Linear Equations:
+- AX = B can be solved as X = A⁻¹B (if A⁻¹ exists)
+- Cramer's rule: xᵢ = det(Aᵢ)/det(A)
+
+Eigenvalues and Eigenvectors:
+- AV = λV where λ is eigenvalue, V is eigenvector
+- Find λ by solving det(A - λI) = 0

@@ -1,9 +1,26 @@
 Derivative Rules:
 - Power Rule: d/dx(xⁿ) = n×xⁿ⁻¹
+- Constant Rule: d/dx(c) = 0
+- Sum Rule: d/dx(f+g) = f' + g'
 - Product Rule: d/dx(uv) = u(dv/dx) + v(du/dx)
-- Chain Rule: d/dx(f(g(x))) = f'(g(x))×g'(x)
 - Quotient Rule: d/dx(u/v) = (v(du/dx) - u(dv/dx))/v²
+- Chain Rule: d/dx(f(g(x))) = f'(g(x))×g'(x)
+
+Common Derivatives:
+- d/dx(sin x) = cos x
+- d/dx(cos x) = -sin x
+- d/dx(eˣ) = eˣ
+- d/dx(ln x) = 1/x
 
 Limits:
 - lim(x→0) sin(x)/x = 1
+- lim(x→0) (1-cos(x))/x = 0
 - lim(x→∞) (1 + 1/x)ˣ = e
+- lim(x→0) (eˣ-1)/x = 1
+
+Integration Rules:
+- ∫xⁿ dx = xⁿ⁺¹/(n+1) + C, where n ≠ -1
+- ∫1/x dx = ln|x| + C
+- ∫eˣ dx = eˣ + C
+- ∫sin x dx = -cos x + C
+- ∫cos x dx = sin x + C

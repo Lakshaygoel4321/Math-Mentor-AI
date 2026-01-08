@@ -1,9 +1,9 @@
-from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
 from langchain.prompts import ChatPromptTemplate
 
 class ExplainerAgent:
     def __init__(self):
-        self.llm = ChatOpenAI(model="gpt-4", temperature=0.3)
+        self.llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.3)
         
         self.prompt = ChatPromptTemplate.from_messages([
             ("system", """You are a friendly math tutor. Explain the solution in a clear, student-friendly way.

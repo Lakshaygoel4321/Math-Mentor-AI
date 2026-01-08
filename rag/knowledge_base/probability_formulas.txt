@@ -1,6 +1,20 @@
 Probability Basics:
-- P(A∪B) = P(A) + P(B) - P(A∩B)
-- P(A|B) = P(A∩B) / P(B)
-- Bayes Theorem: P(A|B) = P(B|A)×P(A) / P(B)
-- Permutations: nPr = n!/(n-r)!
-- Combinations: nCr = n!/(r!(n-r)!)
+- P(A∪B) = P(A) + P(B) - P(A∩B) (Addition rule)
+- P(A∩B) = P(A)×P(B) if A and B are independent
+- P(A|B) = P(A∩B) / P(B) (Conditional probability)
+- P(Aᶜ) = 1 - P(A) (Complement rule)
+
+Bayes Theorem: P(A|B) = P(B|A)×P(A) / P(B)
+
+Permutations: nPr = n!/(n-r)! 
+- Number of ways to arrange r items from n items (order matters)
+
+Combinations: nCr = n!/(r!(n-r)!)
+- Number of ways to choose r items from n items (order doesn't matter)
+
+Expected Value: E(X) = Σ(x×P(x)) for discrete random variables
+Variance: Var(X) = E(X²) - [E(X)]²
+Standard Deviation: σ = √Var(X)
+
+Binomial Distribution: P(X=k) = nCk × pᵏ × (1-p)ⁿ⁻ᵏ
+- n trials, probability p of success, k successes

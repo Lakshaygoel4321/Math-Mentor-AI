@@ -11,15 +11,27 @@ class MemoryStore:
     def load_memories(self):
         """Load memories from disk"""
         if os.path.exists(self.storage_path):
-            with open(self.storage_path, 'r') as f:
-                return json.load(f)
+            try:
+                with open(self.storage_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"⚠️ Error loading memories: {e}")
+                return []
         return []
     
     def save_memories(self):
         """Save memories to disk"""
-        os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
-        with open(self.storage_path, 'w') as f:
-            json.dump(self.memories, f, indent=2)
+        try:
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
+            
+            # Save to file
+            with open(self.storage_path, 'w', encoding='utf-8') as f:
+                json.dump(self.memories, f, indent=2, ensure_ascii=False)
+            
+            print(f"✅ Saved {len(self.memories)} memories to {self.storage_path}")
+        except Exception as e:
+            print(f"❌ Error saving memories: {e}")
     
     def store_interaction(self, data):
         """Store a complete interaction"""
@@ -41,24 +53,48 @@ class MemoryStore:
     
     def get_similar_problems(self, problem_text, limit=3):
         """Retrieve similar past problems"""
+        if not self.memories:
+            return []
+        
         # Simple keyword matching (in production, use embeddings)
         similar = []
         for memory in self.memories:
-            if memory.get("parsed_problem", {}).get("problem_text"):
-                similarity = self._simple_similarity(
-                    problem_text,
-                    memory["parsed_problem"]["problem_text"]
-                )
-                if similarity > 0.3:
-                    similar.append((memory, similarity))
+            parsed = memory.get("parsed_problem")
+            if parsed and isinstance(parsed, dict):
+                stored_text = parsed.get("problem_text", "")
+                if stored_text:
+                    similarity = self._simple_similarity(problem_text, stored_text)
+                    if similarity > 0.3:
+                        similar.append((memory, similarity))
         
-        similar.sort(key=lambda x: x, reverse=True)[1]
-        return [m for m in similar[:limit]]
+        # Sort by similarity (highest first)
+        similar.sort(key=lambda x: x[1], reverse=True)
+        
+        # Return top N memories (without similarity scores)
+        return [m[0] for m in similar[:limit]]
     
     def _simple_similarity(self, text1, text2):
         """Simple word overlap similarity"""
+        if not text1 or not text2:
+            return 0.0
+        
         words1 = set(text1.lower().split())
         words2 = set(text2.lower().split())
+        
         if not words1 or not words2:
-            return 0
-        return len(words1 & words2) / len(words1 | words2)
+            return 0.0
+        
+        intersection = len(words1 & words2)
+        union = len(words1 | words2)
+        
+        return intersection / union if union > 0 else 0.0
+    
+    def get_all_memories(self):
+        """Get all stored memories"""
+        return self.memories
+    
+    def clear_memories(self):
+        """Clear all memories"""
+        self.memories = []
+        self.save_memories()
+        print("✅ All memories cleared")
