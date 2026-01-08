@@ -1,0 +1,6 @@
+Probability Basics:
+- P(A∪B) = P(A) + P(B) - P(A∩B)
+- P(A|B) = P(A∩B) / P(B)
+- Bayes Theorem: P(A|B) = P(B|A)×P(A) / P(B)
+- Permutations: nPr = n!/(n-r)!
+- Combinations: nCr = n!/(r!(n-r)!)

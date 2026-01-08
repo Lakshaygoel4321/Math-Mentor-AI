@@ -1,0 +1,4 @@
+Quadratic Formula: For ax² + bx + c = 0, x = (-b ± √(b²-4ac)) / 2a
+Discriminant: b² - 4ac determines the nature of roots
+Factorization: x² + (a+b)x + ab = (x+a)(x+b)
+Binomial Theorem: (a+b)ⁿ = Σ(nCr × aⁿ⁻ʳ × bʳ)
