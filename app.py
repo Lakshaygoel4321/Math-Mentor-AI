@@ -27,6 +27,69 @@ st.set_page_config(
 )
 
 
+# Auto-setup on first run
+def auto_setup():
+    """Auto setup for Streamlit Cloud or first-time local run"""
+    
+    # Create necessary directories
+    os.makedirs("memory", exist_ok=True)
+    os.makedirs("rag/knowledge_base", exist_ok=True)
+    os.makedirs("rag/vectorstore", exist_ok=True)
+    
+    # Check if vectorstore exists
+    if not os.path.exists("rag/vectorstore/index.faiss"):
+        st.info("🔄 First time setup... Building knowledge base and vector store...")
+        
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        try:
+            # Step 1: Create knowledge base
+            status_text.text("📚 Creating knowledge base...")
+            progress_bar.progress(25)
+            
+            if os.path.exists("create_knowledge_base.py"):
+                import subprocess
+                result = subprocess.run(
+                    ["python", "create_knowledge_base.py"],
+                    capture_output=True,
+                    text=True
+                )
+                if result.returncode == 0:
+                    st.success("✅ Knowledge base created!")
+                else:
+                    st.warning("⚠️ Knowledge base creation skipped")
+            
+            progress_bar.progress(50)
+            
+            # Step 2: Build vectorstore
+            status_text.text("🔨 Building vector store...")
+            progress_bar.progress(75)
+            
+            rag = RAGPipeline()
+            rag.build_vectorstore()
+            
+            progress_bar.progress(100)
+            status_text.text("✅ Setup complete!")
+            
+            st.success("✅ Vector store built successfully!")
+            st.info("🔄 Reloading application...")
+            
+            # Clear cache and rerun
+            st.cache_resource.clear()
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"❌ Setup failed: {e}")
+            st.exception(e)
+            st.warning("Please check your configuration and try again.")
+            st.stop()
+
+
+# Run auto setup
+auto_setup()
+
+
 # Initialize components
 @st.cache_resource
 def init_components():
@@ -337,8 +400,12 @@ with st.sidebar:
     st.header("📊 System Stats")
     
     # Reload memories to get current count
-    current_count = len(components["memory"].load_memories())
-    st.metric("Total Problems Solved", current_count)
+    try:
+        current_count = len(components["memory"].load_memories())
+        st.metric("Total Problems Solved", current_count)
+    except Exception as e:
+        st.metric("Total Problems Solved", 0)
+        st.caption(f"⚠️ Error loading memory: {str(e)}")
     
     st.divider()
     
@@ -362,3 +429,14 @@ with st.sidebar:
             st.rerun()
         except Exception as e:
             st.error(f"❌ Error clearing memory: {str(e)}")
+    
+    st.divider()
+    
+    # Show storage location
+    with st.expander("🗂️ Storage Info"):
+        st.caption(f"**Memory File:** `{components['memory'].storage_path}`")
+        if os.path.exists(components['memory'].storage_path):
+            file_size = os.path.getsize(components['memory'].storage_path)
+            st.caption(f"**File Size:** {file_size} bytes")
+        else:
+            st.caption("**Status:** Not created yet")
