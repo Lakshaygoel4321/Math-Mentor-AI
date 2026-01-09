@@ -14,7 +14,7 @@ from io import BytesIO
 
 # Try to import audio recorder
 try:
-    from audio_recorder_streamlit import audio_recorder
+    from streamlit_mic_recorder import mic_recorder
     AUDIO_RECORDER_AVAILABLE = True
 except ImportError:
     AUDIO_RECORDER_AVAILABLE = False
@@ -222,24 +222,28 @@ elif input_mode == "🎤 Audio":
     audio_file_name = None
     
     if audio_option == "🎙️ Record Audio" and AUDIO_RECORDER_AVAILABLE:
-        st.info("🎤 **Click the button below to start recording, click again to stop**")
+        st.info("🎤 **Click Start to record, Stop when finished**")
         
-        # Audio recorder - returns bytes
-        audio_bytes = audio_recorder(
-            text="Click to record",
-            recording_color="#e74c3c",
-            neutral_color="#6aa36f",
-            icon_name="microphone",
-            icon_size="3x",
+        # Mic recorder
+        audio_data_dict = mic_recorder(
+            start_prompt="🎤 Start Recording",
+            stop_prompt="⏹️ Stop Recording",
+            just_once=False,
+            use_container_width=True,
+            format="webm",
+            callback=None,
+            args=(),
+            kwargs={},
+            key="mic_recorder"
         )
         
-        if audio_bytes:
-            st.audio(audio_bytes, format="audio/wav")
+        if audio_data_dict:
+            audio_bytes = audio_data_dict['bytes']
+            st.audio(audio_bytes, format="audio/webm")
             audio_data = BytesIO(audio_bytes)
-            audio_file_name = "recorded_audio.wav"
+            audio_file_name = "recorded_audio.webm"
             st.success("✅ Audio recorded successfully!")
-
-    
+        
     elif audio_option == "📁 Upload Audio File":
         audio_file = st.file_uploader(
             "Upload audio recording",
