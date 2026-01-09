@@ -12,21 +12,12 @@ import os
 from io import BytesIO
 
 
-# Try to import audio recorder
-try:
-    from streamlit_mic_recorder import mic_recorder
-    AUDIO_RECORDER_AVAILABLE = True
-except ImportError:
-    AUDIO_RECORDER_AVAILABLE = False
-
-
 # Page config
 st.set_page_config(
     page_title="Math Mentor - AI Math Solver",
     page_icon="🧮",
     layout="wide"
 )
-
 
 
 # Auto-setup on first run
@@ -88,10 +79,8 @@ def auto_setup():
             st.stop()
 
 
-
 # Run auto setup
 auto_setup()
-
 
 
 # Initialize components
@@ -112,9 +101,7 @@ def init_components():
     }
 
 
-
 components = init_components()
-
 
 
 # Initialize session state
@@ -126,11 +113,9 @@ if 'current_audio_file' not in st.session_state:
     st.session_state.current_audio_file = None
 
 
-
 # Header
 st.title("🧮 Math Mentor - AI-Powered Math Solver")
 st.markdown("Upload an image, record audio, or type your JEE-style math problem")
-
 
 
 # Input mode selector
@@ -141,11 +126,9 @@ input_mode = st.radio(
 )
 
 
-
 raw_input = None
 input_type = None
 confidence = 1.0
-
 
 
 # Input handling
@@ -156,7 +139,6 @@ if input_mode == "📝 Text":
         height=100
     )
     input_type = "text"
-
 
 
 elif input_mode == "📷 Image":
@@ -190,7 +172,6 @@ elif input_mode == "📷 Image":
         input_type = "image"
 
 
-
 elif input_mode == "🎤 Audio":
     # Reset audio state when switching modes
     if 'last_input_mode' not in st.session_state or st.session_state.last_input_mode != "🎤 Audio":
@@ -199,64 +180,36 @@ elif input_mode == "🎤 Audio":
         st.session_state.current_audio_file = None
     st.session_state.last_input_mode = "🎤 Audio"
     
-    # Check if audio recorder is available
-    if not AUDIO_RECORDER_AVAILABLE:
-        st.warning("🎙️ **Audio recording is not available in this deployment.**")
-        st.info("📁 Please use the **Upload Audio File** option below.")
+    # Professional upload interface
+    st.info("🎤 **Record audio on your device, then upload here for transcription**")
     
-    # Show audio input options
-    if AUDIO_RECORDER_AVAILABLE:
-        st.write("**Choose audio input method:**")
-        audio_option = st.radio(
-            "Select option:",
-            ["🎙️ Record Audio", "📁 Upload Audio File"],
-            horizontal=True,
-            label_visibility="collapsed"
-        )
-    else:
-        # Force upload option if recorder not available
-        audio_option = "📁 Upload Audio File"
-        st.write("**Upload your audio file:**")
+    st.markdown("""
+    **How to use:**
+    1. 📱 Use your phone/computer's voice recorder
+    2. 📤 Upload the audio file below
+    3. ✨ We'll transcribe it automatically!
+    """)
     
     audio_data = None
     audio_file_name = None
     
-    if audio_option == "🎙️ Record Audio" and AUDIO_RECORDER_AVAILABLE:
-        st.info("🎤 **Click Start to record, Stop when finished**")
+    audio_file = st.file_uploader(
+        "Upload your audio recording",
+        type=["mp3", "wav", "m4a", "webm", "ogg"],
+        key="audio_uploader",
+        help="Supported formats: MP3, WAV, M4A, WEBM, OGG"
+    )
+    
+    if audio_file:
+        audio_data = audio_file
+        audio_file_name = audio_file.name
         
-        # Mic recorder
-        audio_data_dict = mic_recorder(
-            start_prompt="🎤 Start Recording",
-            stop_prompt="⏹️ Stop Recording",
-            just_once=False,
-            use_container_width=True,
-            format="webm",
-            callback=None,
-            args=(),
-            kwargs={},
-            key="mic_recorder"
-        )
-        
-        if audio_data_dict:
-            audio_bytes = audio_data_dict['bytes']
-            st.audio(audio_bytes, format="audio/webm")
-            audio_data = BytesIO(audio_bytes)
-            audio_file_name = "recorded_audio.webm"
-            st.success("✅ Audio recorded successfully!")
-        
-    elif audio_option == "📁 Upload Audio File":
-        audio_file = st.file_uploader(
-            "Upload audio recording",
-            type=["mp3", "wav", "m4a", "webm"],
-            key="audio_uploader",
-            help="Record audio on your device and upload the file here"
-        )
-        
-        if audio_file:
-            audio_data = audio_file
-            audio_file_name = audio_file.name
+        col1, col2 = st.columns([2, 1])
+        with col1:
             st.audio(audio_file)
-            st.success("✅ Audio file uploaded!")
+        with col2:
+            st.success("✅ File uploaded!")
+            st.caption(f"📁 {audio_file_name}")
     
     # Process audio if it's new
     if audio_data and audio_file_name:
@@ -264,7 +217,7 @@ elif input_mode == "🎤 Audio":
         if st.session_state.current_audio_file != audio_file_name or not st.session_state.audio_processed:
             st.session_state.current_audio_file = audio_file_name
             
-            with st.spinner("🔄 Transcribing audio..."):
+            with st.spinner("🔄 Transcribing audio... This may take a moment"):
                 try:
                     transcribed = components["audio"].process_audio(audio_data)
                     st.session_state.transcribed_text = transcribed
@@ -277,10 +230,11 @@ elif input_mode == "🎤 Audio":
     
     # Show editable text area if transcription exists
     if st.session_state.transcribed_text:
+        st.markdown("---")
         raw_input = st.text_area(
-            "Transcribed Text (editable):",
+            "📝 Transcribed Text (editable):",
             value=st.session_state.transcribed_text,
-            height=100,
+            height=120,
             key="audio_text_area",
             help="✏️ Edit the text if transcription is incorrect"
         )
@@ -288,16 +242,15 @@ elif input_mode == "🎤 Audio":
         # Update session state with edited text
         st.session_state.transcribed_text = raw_input
         
-        col1, col2 = st.columns([1, 1])
+        col1, col2, col3 = st.columns([1, 1, 2])
         with col1:
-            if st.button("🔄 Clear & Upload New", use_container_width=True):
+            if st.button("🔄 Upload New Audio", use_container_width=True):
                 st.session_state.transcribed_text = None
                 st.session_state.audio_processed = False
                 st.session_state.current_audio_file = None
                 st.rerun()
         
         input_type = "audio"
-
 
 
 # Solve button - show if there's input
@@ -416,7 +369,6 @@ if raw_input:
             except Exception as e:
                 st.error(f"❌ An error occurred: {str(e)}")
                 st.exception(e)
-
 
 
 # Sidebar
